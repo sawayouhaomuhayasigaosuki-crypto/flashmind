@@ -1,0 +1,1454 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FlashMind – スマート暗記カード</title>
+<style>
+
+
+  :root {
+    --ink: #1a2332;
+    --ink-light: #2d3f55;
+    --ink-faint: #4a6080;
+    --paper: #f5f2ec;
+    --paper-dark: #ede9e0;
+    --paper-darker: #ddd8cc;
+    --accent: #2563a8;
+    --accent-light: #3a7bc8;
+    --accent-pale: #dbeafe;
+    --success: #16a34a;
+    --success-pale: #dcfce7;
+    --warn: #d97706;
+    --warn-pale: #fef3c7;
+    --danger: #dc2626;
+    --danger-pale: #fee2e2;
+    --shadow-sm: 0 1px 3px rgba(26,35,50,0.12);
+    --shadow-md: 0 4px 12px rgba(26,35,50,0.15);
+    --shadow-lg: 0 8px 30px rgba(26,35,50,0.2);
+    --radius: 10px;
+    --radius-lg: 16px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    min-height: 100vh;
+    font-size: 15px;
+  }
+
+  /* ===== LAYOUT ===== */
+  .app-shell {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+  }
+
+  header {
+    background: var(--ink);
+    color: var(--paper);
+    padding: 0 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 54px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: var(--shadow-md);
+  }
+
+  .logo {
+    font-family: -apple-system, 'Hiragino Sans', sans-serif;
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+  }
+  .logo span { color: #60a5fa; }
+
+  nav {
+    display: flex;
+    gap: 4px;
+  }
+
+  .nav-btn {
+    background: none;
+    border: none;
+    color: rgba(245,242,236,0.6);
+    cursor: pointer;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-family: -apple-system, 'Hiragino Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .nav-btn:hover { background: rgba(255,255,255,0.1); color: var(--paper); }
+  .nav-btn.active { background: var(--accent); color: white; }
+
+  main { flex: 1; padding: 24px 20px; max-width: 780px; margin: 0 auto; width: 100%; }
+
+  .view { display: none; }
+  .view.active { display: block; }
+
+  /* ===== CARDS / PANELS ===== */
+  .panel {
+    background: white;
+    border-radius: var(--radius-lg);
+    padding: 20px;
+    box-shadow: var(--shadow-sm);
+    margin-bottom: 16px;
+  }
+
+  .panel-title {
+    font-family: -apple-system, 'Hiragino Sans', sans-serif;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--ink);
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  /* ===== STUDY VIEW ===== */
+  .study-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+  }
+
+  .deck-selector {
+    border: 1.5px solid var(--paper-darker);
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-family: -apple-system, 'Hiragino Sans', sans-serif;
+    font-size: 14px;
+    background: white;
+    color: var(--ink);
+    cursor: pointer;
+    flex: 1;
+    max-width: 260px;
+  }
+
+  .study-stats {
+    display: flex;
+    gap: 12px;
+    font-size: 13px;
+  }
+
+  .stat-badge {
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-weight: 600;
+  }
+  .badge-new { background: var(--accent-pale); color: var(--accent); }
+  .badge-review { background: var(--warn-pale); color: var(--warn); }
+  .badge-done { background: var(--success-pale); color: var(--success); }
+
+  /* ===== FLASHCARD ===== */
+  .card-scene {
+    perspective: 1200px;
+    margin: 0 auto 24px;
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .card-3d {
+    position: relative;
+    transform-style: preserve-3d;
+    transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    border-radius: var(--radius-lg);
+    min-height: 220px;
+  }
+  .card-3d.flipped { transform: rotateY(180deg); }
+
+  .card-face {
+    position: absolute;
+    width: 100%;
+    min-height: 220px;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+    border-radius: var(--radius-lg);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 28px 24px;
+    box-shadow: var(--shadow-lg);
+  }
+
+  .card-front {
+    background: white;
+    border: 2px solid var(--paper-darker);
+  }
+
+  .card-back {
+    background: var(--ink);
+    color: var(--paper);
+    transform: rotateY(180deg);
+    border: 2px solid var(--ink-light);
+  }
+
+  .card-side-label {
+    position: absolute;
+    top: 14px;
+    left: 18px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    opacity: 0.4;
+    font-family: -apple-system, 'Hiragino Sans', sans-serif;
+  }
+
+  .card-deck-tag {
+    position: absolute;
+    top: 14px;
+    right: 18px;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    background: var(--accent-pale);
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .card-back .card-deck-tag {
+    background: rgba(255,255,255,0.1);
+    color: rgba(245,242,236,0.7);
+  }
+
+  .card-text {
+    font-size: 22px;
+    font-weight: 500;
+    text-align: center;
+    line-height: 1.5;
+    white-space: pre-wrap;
+  }
+
+  .card-hint {
+    position: absolute;
+    bottom: 14px;
+    font-size: 12px;
+    opacity: 0.4;
+    font-style: italic;
+  }
+
+  .card-placeholder {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--ink-faint);
+  }
+  .card-placeholder .emoji { font-size: 48px; margin-bottom: 12px; }
+  .card-placeholder p { font-size: 16px; }
+  .card-placeholder small { font-size: 13px; opacity: 0.7; }
+
+  /* ===== RATING BUTTONS ===== */
+  .rating-area {
+    display: none;
+    gap: 10px;
+    justify-content: center;
+  }
+  .rating-area.visible { display: flex; }
+
+  .rating-btn {
+    flex: 1;
+    max-width: 160px;
+    padding: 12px 8px;
+    border: none;
+    border-radius: var(--radius);
+    cursor: pointer;
+    font-family: -apple-system, 'Hiragino Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    transition: all 0.15s;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+  }
+  .rating-btn .interval { font-size: 10px; font-weight: 400; opacity: 0.8; }
+  .btn-again { background: var(--danger-pale); color: var(--danger); }
+  .btn-hard { background: var(--warn-pale); color: var(--warn); }
+  .btn-good { background: var(--success-pale); color: var(--success); }
+  .btn-easy { background: var(--accent-pale); color: var(--accent); }
+  .rating-btn:hover { filter: brightness(0.92); transform: translateY(-1px); }
+  .rating-btn:active { transform: translateY(0); }
+
+  .flip-hint {
+    text-align: center;
+    font-size: 13px;
+    color: var(--ink-faint);
+    margin-bottom: 14px;
+  }
+  .flip-hint.hidden { visibility: hidden; }
+
+  /* ===== MANAGE VIEW ===== */
+  .manage-toolbar {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+  }
+
+  input[type=text], input[type=password], textarea, select {
+    border: 1.5px solid var(--paper-darker);
+    border-radius: 8px;
+    padding: 9px 12px;
+    font-family: -apple-system, 'Hiragino Sans', sans-serif;
+    font-size: 14px;
+    color: var(--ink);
+    background: white;
+    width: 100%;
+    transition: border-color 0.15s;
+    outline: none;
+  }
+  input:focus, textarea:focus, select:focus { border-color: var(--accent); }
+  textarea { resize: vertical; min-height: 80px; }
+
+  .form-group { margin-bottom: 12px; }
+  .form-label { font-size: 12px; font-weight: 600; color: var(--ink-faint); margin-bottom: 5px; display: block; letter-spacing: 0.5px; text-transform: uppercase; }
+
+  .btn {
+    padding: 9px 16px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-family: -apple-system, 'Hiragino Sans', sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    transition: all 0.15s;
+    white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .btn:hover { filter: brightness(0.9); }
+  .btn:active { transform: scale(0.97); }
+  .btn-primary { background: var(--accent); color: white; }
+  .btn-secondary { background: var(--paper-dark); color: var(--ink); }
+  .btn-danger { background: var(--danger); color: white; }
+  .btn-success { background: var(--success); color: white; }
+  .btn-sm { padding: 5px 10px; font-size: 12px; }
+
+  .card-list { display: flex; flex-direction: column; gap: 8px; }
+
+  .card-item {
+    background: var(--paper);
+    border-radius: var(--radius);
+    padding: 12px 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border: 1.5px solid transparent;
+    transition: border-color 0.15s;
+  }
+  .card-item:hover { border-color: var(--paper-darker); }
+
+  .card-item-content { flex: 1; min-width: 0; }
+  .card-item-front { font-weight: 600; font-size: 14px; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .card-item-back { font-size: 12px; color: var(--ink-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .card-item-meta { font-size: 11px; color: var(--ink-faint); white-space: nowrap; }
+
+  .deck-tag {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 600;
+    background: var(--accent-pale);
+    color: var(--accent);
+  }
+
+  /* ===== STATS VIEW ===== */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+
+  .stat-card {
+    background: white;
+    border-radius: var(--radius-lg);
+    padding: 18px;
+    text-align: center;
+    box-shadow: var(--shadow-sm);
+  }
+
+  .stat-number {
+    font-family: -apple-system, 'Hiragino Sans', sans-serif;
+    font-size: 36px;
+    font-weight: 700;
+    color: var(--accent);
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+
+  .stat-label {
+    font-size: 12px;
+    color: var(--ink-faint);
+    font-weight: 500;
+  }
+
+  .heatmap {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 3px;
+  }
+
+  .heatmap-cell {
+    aspect-ratio: 1;
+    border-radius: 3px;
+    background: var(--paper-dark);
+    position: relative;
+    cursor: default;
+  }
+  .heatmap-cell[data-count="1"] { background: #bfdbfe; }
+  .heatmap-cell[data-count="2"] { background: #60a5fa; }
+  .heatmap-cell[data-count="3"] { background: #2563eb; }
+  .heatmap-cell[data-count="4"] { background: #1e3a8a; }
+
+  .bar-chart { display: flex; flex-direction: column; gap: 8px; }
+
+  .bar-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .bar-label { width: 90px; font-size: 12px; color: var(--ink-faint); text-align: right; flex-shrink: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bar-track { flex: 1; background: var(--paper-dark); border-radius: 4px; height: 20px; overflow: hidden; }
+  .bar-fill { height: 100%; background: var(--accent); border-radius: 4px; transition: width 0.6s ease; display: flex; align-items: center; justify-content: flex-end; padding-right: 6px; }
+  .bar-val { font-size: 11px; font-weight: 700; color: white; }
+
+  /* ===== AI VIEW ===== */
+  .ai-key-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+
+  .ai-result {
+    display: none;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .ai-result.visible { display: flex; }
+
+  .ai-card-preview {
+    background: var(--paper);
+    border-radius: var(--radius);
+    padding: 14px;
+    border-left: 3px solid var(--accent);
+  }
+  .ai-card-q { font-weight: 600; font-size: 14px; margin-bottom: 6px; }
+  .ai-card-a { font-size: 13px; color: var(--ink-faint); }
+  .ai-card-actions { display: flex; gap: 6px; margin-top: 8px; }
+
+  /* ===== MODAL ===== */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(26,35,50,0.6);
+    z-index: 200;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  .modal-overlay.open { display: flex; }
+
+  .modal {
+    background: white;
+    border-radius: var(--radius-lg);
+    padding: 24px;
+    width: 100%;
+    max-width: 500px;
+    box-shadow: var(--shadow-lg);
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+
+  .modal-title {
+    font-family: -apple-system, 'Hiragino Sans', sans-serif;
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: 18px;
+    color: var(--ink);
+  }
+
+  .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+
+  /* ===== TOAST ===== */
+  .toast-container {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 999;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    pointer-events: none;
+  }
+
+  .toast {
+    background: var(--ink);
+    color: var(--paper);
+    padding: 10px 18px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 500;
+    box-shadow: var(--shadow-md);
+    animation: toastIn 0.3s ease, toastOut 0.3s ease 2.2s forwards;
+    pointer-events: auto;
+  }
+  @keyframes toastIn { from { opacity:0; transform: translateY(10px); } to { opacity:1; transform: translateY(0); } }
+  @keyframes toastOut { to { opacity:0; transform: translateY(-10px); } }
+
+  /* ===== MISC ===== */
+  .empty-state { text-align: center; padding: 40px 20px; color: var(--ink-faint); }
+  .empty-state .emoji { font-size: 36px; margin-bottom: 10px; }
+
+  .divider { height: 1px; background: var(--paper-dark); margin: 16px 0; }
+
+  .tag-row { display: flex; gap: 6px; flex-wrap: wrap; }
+
+  .progress-bar {
+    height: 4px;
+    background: var(--paper-dark);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-bottom: 16px;
+  }
+  .progress-fill {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 2px;
+    transition: width 0.3s;
+  }
+
+  .ai-spinner {
+    display: inline-block;
+    width: 16px; height: 16px;
+    border: 2px solid rgba(255,255,255,0.3);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    vertical-align: middle;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ===== IMPORT AREA ===== */
+  .drop-zone {
+    border: 2px dashed var(--paper-darker);
+    border-radius: var(--radius-lg);
+    padding: 32px;
+    text-align: center;
+    color: var(--ink-faint);
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-bottom: 12px;
+  }
+  .drop-zone:hover, .drop-zone.drag-over { border-color: var(--accent); color: var(--accent); background: var(--accent-pale); }
+  .drop-zone .emoji { font-size: 32px; margin-bottom: 8px; }
+
+  @media (max-width: 500px) {
+    main { padding: 16px 12px; }
+    .card-text { font-size: 18px; }
+    nav { gap: 2px; }
+    .nav-btn { padding: 6px 8px; font-size: 12px; }
+    .rating-area { flex-wrap: wrap; }
+    .rating-btn { max-width: none; }
+  }
+
+  .filter-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 14px; }
+  .filter-row input { flex: 1; min-width: 160px; }
+
+  .session-complete {
+    text-align: center;
+    padding: 40px 20px;
+  }
+  .session-complete .big-emoji { font-size: 64px; margin-bottom: 16px; }
+  .session-complete h2 { font-family: -apple-system, 'Hiragino Sans', sans-serif; font-size: 24px; font-weight: 700; margin-bottom: 8px; }
+  .session-complete p { color: var(--ink-faint); margin-bottom: 20px; }
+</style>
+</head>
+<body>
+<div class="app-shell">
+  <header>
+    <div class="logo">Flash<span>Mind</span></div>
+    <nav>
+      <button class="nav-btn active" onclick="showView('study')">📖 学習</button>
+      <button class="nav-btn" onclick="showView('manage')">🗂 管理</button>
+      <button class="nav-btn" onclick="showView('stats')">📊 統計</button>
+      <button class="nav-btn" onclick="showView('ai')">🤖 AI</button>
+      <button class="nav-btn" onclick="showView('io')">📦 入出力</button>
+    </nav>
+  </header>
+
+  <main>
+    <!-- ===== STUDY VIEW ===== -->
+    <div id="view-study" class="view active">
+      <div class="study-header">
+        <select class="deck-selector" id="studyDeckSelect" onchange="loadStudySession()">
+          <option value="all">すべてのデッキ</option>
+        </select>
+        <div class="study-stats">
+          <span class="stat-badge badge-new" id="countNew">新0</span>
+          <span class="stat-badge badge-review" id="countReview">復習0</span>
+          <span class="stat-badge badge-done" id="countDone">完0</span>
+        </div>
+      </div>
+
+      <div class="progress-bar"><div class="progress-fill" id="studyProgress" style="width:0%"></div></div>
+
+      <div id="studyArea">
+        <div class="card-placeholder">
+          <div class="emoji">📭</div>
+          <p>カードがありません</p>
+          <small>管理タブでカードを追加してください</small>
+        </div>
+      </div>
+
+      <p class="flip-hint hidden" id="flipHint">タップしてカードをめくる</p>
+
+      <div class="rating-area" id="ratingArea">
+        <button class="rating-btn btn-again" onclick="rate(0)">
+          もう一度<span class="interval" id="int-again"></span>
+        </button>
+        <button class="rating-btn btn-hard" onclick="rate(1)">
+          難しい<span class="interval" id="int-hard"></span>
+        </button>
+        <button class="rating-btn btn-good" onclick="rate(3)">
+          よい<span class="interval" id="int-good"></span>
+        </button>
+        <button class="rating-btn btn-easy" onclick="rate(5)">
+          簡単<span class="interval" id="int-easy"></span>
+        </button>
+      </div>
+    </div>
+
+    <!-- ===== MANAGE VIEW ===== -->
+    <div id="view-manage" class="view">
+      <div class="panel">
+        <div class="panel-title">➕ カードを追加</div>
+        <div class="form-group">
+          <label class="form-label">デッキ</label>
+          <div style="display:flex;gap:8px;">
+            <select id="addDeckSelect" style="flex:1"></select>
+            <button class="btn btn-secondary btn-sm" onclick="openNewDeckModal()">＋デッキ</button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">表面（問題）</label>
+          <textarea id="addFront" placeholder="例：Cpkとは？"></textarea>
+        </div>
+        <div class="form-group">
+          <label class="form-label">裏面（答え）</label>
+          <textarea id="addBack" placeholder="例：工程能力指数。規格幅に対してばらつきがどれだけ収まっているかを示す指標"></textarea>
+        </div>
+        <button class="btn btn-primary" onclick="addCard()">📌 追加する</button>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title">🗂 カード一覧</div>
+        <div class="filter-row">
+          <input type="text" id="filterText" placeholder="🔍 検索..." oninput="renderCardList()">
+          <select id="filterDeck" onchange="renderCardList()" style="width:auto;min-width:120px;">
+            <option value="all">全デッキ</option>
+          </select>
+        </div>
+        <div id="cardList" class="card-list"></div>
+      </div>
+    </div>
+
+    <!-- ===== STATS VIEW ===== -->
+    <div id="view-stats" class="view">
+      <div class="stats-grid" id="statsGrid"></div>
+
+      <div class="panel">
+        <div class="panel-title">📅 学習ヒートマップ（直近49日）</div>
+        <div class="heatmap" id="heatmap"></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title">📚 デッキ別カード数</div>
+        <div class="bar-chart" id="deckBarChart"></div>
+      </div>
+    </div>
+
+    <!-- ===== AI VIEW ===== -->
+    <div id="view-ai" class="view">
+      <div class="panel">
+        <div class="panel-title">🔑 APIキー設定</div>
+        <div class="ai-key-row">
+          <input type="password" id="apiKey" placeholder="sk-ant-...">
+          <button class="btn btn-secondary" onclick="saveKey()">保存</button>
+        </div>
+        <small style="color:var(--ink-faint);font-size:12px;">キーはlocalStorageに保存。サーバー送信はありません。</small>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title">🤖 AI問題生成</div>
+        <div class="form-group">
+          <label class="form-label">テーマ・テキスト</label>
+          <textarea id="aiTopic" placeholder="例：SUS304ステンレスの特性、QC7つ道具、PLC命令語..." style="min-height:100px;"></textarea>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <div class="form-group" style="flex:1;min-width:120px;">
+            <label class="form-label">生成枚数</label>
+            <select id="aiCount" style="width:100%">
+              <option value="3">3枚</option>
+              <option value="5" selected>5枚</option>
+              <option value="10">10枚</option>
+            </select>
+          </div>
+          <div class="form-group" style="flex:1;min-width:120px;">
+            <label class="form-label">追加先デッキ</label>
+            <select id="aiDeckSelect" style="width:100%"></select>
+          </div>
+        </div>
+        <button class="btn btn-primary" id="aiGenerateBtn" onclick="generateCards()">✨ 生成する</button>
+      </div>
+
+      <div class="ai-result" id="aiResult">
+        <div class="panel-title" style="margin-top:4px;">📝 生成されたカード</div>
+        <div id="aiCardList"></div>
+        <button class="btn btn-success" onclick="addAllAiCards()">✅ すべて追加</button>
+      </div>
+    </div>
+
+    <!-- ===== IO VIEW ===== -->
+    <div id="view-io" class="view">
+      <div class="panel">
+        <div class="panel-title">📤 エクスポート</div>
+        <p style="font-size:13px;color:var(--ink-faint);margin-bottom:14px;">全カード・デッキ・学習履歴をJSONファイルで保存します。</p>
+        <button class="btn btn-primary" onclick="exportJSON()">💾 JSONエクスポート</button>
+        <button class="btn btn-secondary" style="margin-left:8px;" onclick="exportCSV()">📄 CSVエクスポート（カードのみ）</button>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title">📥 インポート</div>
+        <div class="drop-zone" id="dropZone" onclick="document.getElementById('importFile').click()"
+          ondragover="dropZone_over(event)" ondragleave="dropZone_leave(event)" ondrop="dropZone_drop(event)">
+          <div class="emoji">📂</div>
+          <p style="font-size:14px;font-weight:600;margin-bottom:4px;">クリックまたはドラッグ＆ドロップ</p>
+          <small>JSON（バックアップ）/ CSV（表面,裏面,デッキ）/ TSV・TXT（表面⇥裏面）</small>
+        </div>
+        <input type="file" id="importFile" accept=".json,.csv,.tsv,.txt" style="display:none" onchange="importFile(event)">
+      </div>
+
+      <div class="panel">
+        <div class="panel-title">⚠️ データ管理</div>
+        <button class="btn btn-danger" onclick="clearAllData()">🗑 全データ削除</button>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- Modals -->
+<div class="modal-overlay" id="newDeckModal">
+  <div class="modal">
+    <div class="modal-title">新しいデッキを作成</div>
+    <div class="form-group">
+      <label class="form-label">デッキ名</label>
+      <input type="text" id="newDeckName" placeholder="例：品質管理用語">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal('newDeckModal')">キャンセル</button>
+      <button class="btn btn-primary" onclick="createDeck()">作成</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="editCardModal">
+  <div class="modal">
+    <div class="modal-title">カードを編集</div>
+    <input type="hidden" id="editCardId">
+    <div class="form-group">
+      <label class="form-label">デッキ</label>
+      <select id="editDeckSelect"></select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">表面</label>
+      <textarea id="editFront"></textarea>
+    </div>
+    <div class="form-group">
+      <label class="form-label">裏面</label>
+      <textarea id="editBack"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal('editCardModal')">キャンセル</button>
+      <button class="btn btn-primary" onclick="saveEditCard()">保存</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+// ============================================================
+// DATA MODEL
+// ============================================================
+let db = {
+  decks: [],      // [{id, name, createdAt}]
+  cards: [],      // [{id, deckId, front, back, ...sm2 fields..., createdAt}]
+  history: [],    // [{date, cardId, rating}]
+  settings: {}
+};
+
+function loadDB() {
+  const raw = localStorage.getItem('flashmind_db');
+  if (raw) db = JSON.parse(raw);
+  if (!db.decks) db.decks = [];
+  if (!db.cards) db.cards = [];
+  if (!db.history) db.history = [];
+  if (!db.settings) db.settings = {};
+  if (db.decks.length === 0) {
+    db.decks.push({ id: uid(), name: 'デフォルト', createdAt: now() });
+    saveDB();
+  }
+}
+
+function saveDB() {
+  localStorage.setItem('flashmind_db', JSON.stringify(db));
+}
+
+function uid() { return Math.random().toString(36).slice(2, 9); }
+function now() { return Date.now(); }
+function today() { return new Date().toISOString().slice(0, 10); }
+
+// ============================================================
+// SM-2 ALGORITHM
+// ============================================================
+function sm2Defaults() {
+  return { easiness: 2.5, interval: 0, repetitions: 0, dueDate: today() };
+}
+
+function sm2Update(card, q) {
+  // q: 0=again, 1=hard, 3=good, 5=easy
+  let { easiness, interval, repetitions } = card;
+  if (q < 3) {
+    repetitions = 0;
+    interval = 1;
+  } else {
+    if (repetitions === 0) interval = 1;
+    else if (repetitions === 1) interval = 6;
+    else interval = Math.round(interval * easiness);
+    repetitions++;
+    easiness = Math.max(1.3, easiness + 0.1 - (5 - q) * (0.08 + (5 - q) * 0.02));
+  }
+  const due = new Date();
+  due.setDate(due.getDate() + interval);
+  return { easiness, interval, repetitions, dueDate: due.toISOString().slice(0, 10) };
+}
+
+function getIntervalLabel(card, q) {
+  const clone = { ...card };
+  const updated = sm2Update(clone, q);
+  const d = updated.interval;
+  if (d < 1) return '< 1日';
+  if (d === 1) return '1日後';
+  if (d < 7) return `${d}日後`;
+  if (d < 30) return `${Math.round(d/7)}週後`;
+  return `${Math.round(d/30)}ヶ月後`;
+}
+
+// ============================================================
+// STUDY SESSION
+// ============================================================
+let studyQueue = [];
+let currentCard = null;
+let sessionDone = 0;
+let isFlipped = false;
+
+function getDueCards(deckId) {
+  const td = today();
+  return db.cards.filter(c => {
+    if (deckId !== 'all' && c.deckId !== deckId) return false;
+    return (!c.dueDate || c.dueDate <= td);
+  });
+}
+
+function loadStudySession() {
+  const deckId = document.getElementById('studyDeckSelect').value;
+  studyQueue = getDueCards(deckId);
+  sessionDone = 0;
+  updateStudyCounts();
+  nextCard();
+}
+
+function updateStudyCounts() {
+  const deckId = document.getElementById('studyDeckSelect').value;
+  const td = today();
+  let newC = 0, rev = 0;
+  db.cards.forEach(c => {
+    if (deckId !== 'all' && c.deckId !== deckId) return;
+    if (!c.dueDate || c.dueDate > td) return;
+    if (!c.repetitions || c.repetitions === 0) newC++;
+    else rev++;
+  });
+  document.getElementById('countNew').textContent = `新${newC}`;
+  document.getElementById('countReview').textContent = `復習${rev}`;
+  document.getElementById('countDone').textContent = `完${sessionDone}`;
+  const total = studyQueue.length + sessionDone;
+  const pct = total > 0 ? (sessionDone / total * 100) : 0;
+  document.getElementById('studyProgress').style.width = pct + '%';
+}
+
+function nextCard() {
+  isFlipped = false;
+  document.getElementById('ratingArea').classList.remove('visible');
+  document.getElementById('flipHint').classList.add('hidden');
+
+  if (studyQueue.length === 0) {
+    showSessionComplete();
+    return;
+  }
+
+  currentCard = studyQueue[0];
+  renderStudyCard(currentCard);
+  document.getElementById('flipHint').classList.remove('hidden');
+}
+
+function showSessionComplete() {
+  currentCard = null;
+  document.getElementById('studyArea').innerHTML = `
+    <div class="session-complete panel">
+      <div class="big-emoji">🎉</div>
+      <h2>セッション完了！</h2>
+      <p>本日の学習を終了しました（${sessionDone}枚）</p>
+      <button class="btn btn-primary" onclick="loadStudySession()">もう一度</button>
+    </div>`;
+  document.getElementById('flipHint').classList.add('hidden');
+  updateStudyCounts();
+}
+
+function renderStudyCard(card) {
+  const deck = db.decks.find(d => d.id === card.deckId);
+  document.getElementById('studyArea').innerHTML = `
+    <div class="card-scene" onclick="flipCard()">
+      <div class="card-3d" id="card3d">
+        <div class="card-face card-front">
+          <span class="card-side-label">問題</span>
+          <span class="card-deck-tag">${deck ? deck.name : '?'}</span>
+          <div class="card-text">${escHtml(card.front)}</div>
+          <span class="card-hint">タップでめくる</span>
+        </div>
+        <div class="card-face card-back">
+          <span class="card-side-label">答え</span>
+          <span class="card-deck-tag">${deck ? deck.name : '?'}</span>
+          <div class="card-text">${escHtml(card.back)}</div>
+        </div>
+      </div>
+    </div>`;
+}
+
+function flipCard() {
+  if (!currentCard) return;
+  const el = document.getElementById('card3d');
+  if (!el) return;
+  if (!isFlipped) {
+    el.classList.add('flipped');
+    isFlipped = true;
+    // Show ratings and intervals
+    document.getElementById('ratingArea').classList.add('visible');
+    document.getElementById('flipHint').classList.add('hidden');
+    document.getElementById('int-again').textContent = getIntervalLabel(currentCard, 0);
+    document.getElementById('int-hard').textContent = getIntervalLabel(currentCard, 1);
+    document.getElementById('int-good').textContent = getIntervalLabel(currentCard, 3);
+    document.getElementById('int-easy').textContent = getIntervalLabel(currentCard, 5);
+  }
+}
+
+function rate(q) {
+  if (!currentCard) return;
+  const idx = db.cards.findIndex(c => c.id === currentCard.id);
+  if (idx >= 0) {
+    const updated = sm2Update(db.cards[idx], q);
+    db.cards[idx] = { ...db.cards[idx], ...updated };
+    db.history.push({ date: today(), cardId: currentCard.id, rating: q });
+    saveDB();
+  }
+  studyQueue.shift();
+  if (q < 3) studyQueue.push(currentCard); // put back again queue
+  else sessionDone++;
+  updateStudyCounts();
+  nextCard();
+}
+
+// ============================================================
+// CARD MANAGEMENT
+// ============================================================
+function addCard() {
+  const front = document.getElementById('addFront').value.trim();
+  const back = document.getElementById('addBack').value.trim();
+  const deckId = document.getElementById('addDeckSelect').value;
+  if (!front || !back) { toast('表面と裏面を入力してください'); return; }
+  const card = { id: uid(), deckId, front, back, createdAt: now(), ...sm2Defaults() };
+  db.cards.push(card);
+  saveDB();
+  document.getElementById('addFront').value = '';
+  document.getElementById('addBack').value = '';
+  renderCardList();
+  updateStudyCounts();
+  toast('✅ カードを追加しました');
+}
+
+function deleteCard(id) {
+  if (!confirm('このカードを削除しますか？')) return;
+  db.cards = db.cards.filter(c => c.id !== id);
+  saveDB();
+  renderCardList();
+}
+
+function openEditModal(id) {
+  const card = db.cards.find(c => c.id === id);
+  if (!card) return;
+  document.getElementById('editCardId').value = id;
+  document.getElementById('editFront').value = card.front;
+  document.getElementById('editBack').value = card.back;
+  populateDeckSelect('editDeckSelect', card.deckId);
+  openModal('editCardModal');
+}
+
+function saveEditCard() {
+  const id = document.getElementById('editCardId').value;
+  const idx = db.cards.findIndex(c => c.id === id);
+  if (idx < 0) return;
+  db.cards[idx].front = document.getElementById('editFront').value.trim();
+  db.cards[idx].back = document.getElementById('editBack').value.trim();
+  db.cards[idx].deckId = document.getElementById('editDeckSelect').value;
+  saveDB();
+  renderCardList();
+  closeModal('editCardModal');
+  toast('✅ 保存しました');
+}
+
+function renderCardList() {
+  const filter = document.getElementById('filterText').value.toLowerCase();
+  const deckFilter = document.getElementById('filterDeck').value;
+  let cards = db.cards.filter(c => {
+    if (deckFilter !== 'all' && c.deckId !== deckFilter) return false;
+    return (c.front + c.back).toLowerCase().includes(filter);
+  });
+  const el = document.getElementById('cardList');
+  if (cards.length === 0) {
+    el.innerHTML = '<div class="empty-state"><div class="emoji">📭</div><p>カードがありません</p></div>';
+    return;
+  }
+  el.innerHTML = cards.map(c => {
+    const deck = db.decks.find(d => d.id === c.deckId);
+    const due = c.dueDate <= today() ? '今日' : c.dueDate;
+    return `<div class="card-item">
+      <div class="card-item-content">
+        <div class="card-item-front">${escHtml(c.front)}</div>
+        <div class="card-item-back">${escHtml(c.back)}</div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
+        <span class="deck-tag">${deck ? deck.name : '?'}</span>
+        <span class="card-item-meta">次回: ${due}</span>
+      </div>
+      <div style="display:flex;gap:4px;flex-shrink:0;">
+        <button class="btn btn-secondary btn-sm" onclick="openEditModal('${c.id}')">✏️</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteCard('${c.id}')">🗑</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ============================================================
+// DECK MANAGEMENT
+// ============================================================
+function openNewDeckModal() { openModal('newDeckModal'); }
+
+function createDeck() {
+  const name = document.getElementById('newDeckName').value.trim();
+  if (!name) { toast('デッキ名を入力してください'); return; }
+  if (db.decks.find(d => d.name === name)) { toast('同名のデッキが存在します'); return; }
+  db.decks.push({ id: uid(), name, createdAt: now() });
+  saveDB();
+  refreshAllDeckSelects();
+  closeModal('newDeckModal');
+  document.getElementById('newDeckName').value = '';
+  toast(`📚 デッキ「${name}」を作成しました`);
+}
+
+function populateDeckSelect(elId, selectedId) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  el.innerHTML = db.decks.map(d => `<option value="${d.id}" ${d.id === selectedId ? 'selected' : ''}>${d.name}</option>`).join('');
+}
+
+function refreshAllDeckSelects() {
+  // Study deck select
+  const studyEl = document.getElementById('studyDeckSelect');
+  const prevStudy = studyEl.value;
+  studyEl.innerHTML = '<option value="all">すべてのデッキ</option>' +
+    db.decks.map(d => `<option value="${d.id}">${d.name}</option>`).join('');
+  if (db.decks.find(d => d.id === prevStudy)) studyEl.value = prevStudy;
+
+  populateDeckSelect('addDeckSelect', db.decks[0]?.id);
+  populateDeckSelect('aiDeckSelect', db.decks[0]?.id);
+
+  // Filter deck
+  const fdEl = document.getElementById('filterDeck');
+  const prevFd = fdEl?.value;
+  if (fdEl) {
+    fdEl.innerHTML = '<option value="all">全デッキ</option>' +
+      db.decks.map(d => `<option value="${d.id}">${d.name}</option>`).join('');
+    if (db.decks.find(d => d.id === prevFd)) fdEl.value = prevFd;
+  }
+}
+
+// ============================================================
+// STATS
+// ============================================================
+function renderStats() {
+  const total = db.cards.length;
+  const td = today();
+  const due = db.cards.filter(c => !c.dueDate || c.dueDate <= td).length;
+  const todayHistory = db.history.filter(h => h.date === td);
+  const streak = calcStreak();
+
+  document.getElementById('statsGrid').innerHTML = `
+    <div class="stat-card"><div class="stat-number">${total}</div><div class="stat-label">総カード数</div></div>
+    <div class="stat-card"><div class="stat-number">${due}</div><div class="stat-label">本日の復習</div></div>
+    <div class="stat-card"><div class="stat-number">${todayHistory.length}</div><div class="stat-label">今日の学習数</div></div>
+    <div class="stat-card"><div class="stat-number">${streak}</div><div class="stat-label">連続学習日</div></div>`;
+
+  // Heatmap
+  const heatEl = document.getElementById('heatmap');
+  const countMap = {};
+  db.history.forEach(h => { countMap[h.date] = (countMap[h.date] || 0) + 1; });
+  const cells = [];
+  for (let i = 48; i >= 0; i--) {
+    const d = new Date(); d.setDate(d.getDate() - i);
+    const key = d.toISOString().slice(0, 10);
+    const cnt = countMap[key] || 0;
+    const level = cnt === 0 ? 0 : cnt < 5 ? 1 : cnt < 15 ? 2 : cnt < 30 ? 3 : 4;
+    cells.push(`<div class="heatmap-cell" data-count="${level}" title="${key}: ${cnt}枚"></div>`);
+  }
+  heatEl.innerHTML = cells.join('');
+
+  // Bar chart
+  const barEl = document.getElementById('deckBarChart');
+  if (db.decks.length === 0) { barEl.innerHTML = '<p style="color:var(--ink-faint);font-size:13px;">デッキがありません</p>'; return; }
+  const maxCount = Math.max(...db.decks.map(d => db.cards.filter(c => c.deckId === d.id).length), 1);
+  barEl.innerHTML = db.decks.map(d => {
+    const cnt = db.cards.filter(c => c.deckId === d.id).length;
+    const pct = Math.round(cnt / maxCount * 100);
+    return `<div class="bar-row">
+      <span class="bar-label" title="${d.name}">${d.name}</span>
+      <div class="bar-track"><div class="bar-fill" style="width:${pct}%"><span class="bar-val">${cnt}</span></div></div>
+    </div>`;
+  }).join('');
+}
+
+function calcStreak() {
+  const dates = [...new Set(db.history.map(h => h.date))].sort().reverse();
+  if (dates.length === 0) return 0;
+  let streak = 0;
+  const td = today();
+  const check = (d, offset) => {
+    const c = new Date(); c.setDate(c.getDate() - offset);
+    return c.toISOString().slice(0, 10) === d;
+  };
+  for (let i = 0; i < dates.length; i++) {
+    if (check(dates[i], i)) streak++;
+    else break;
+  }
+  // If today not studied yet, allow yesterday to count
+  if (streak === 0 && dates[0] === (() => { const d = new Date(); d.setDate(d.getDate()-1); return d.toISOString().slice(0,10); })()) {
+    for (let i = 0; i < dates.length; i++) {
+      const d2 = new Date(); d2.setDate(d2.getDate() - (i + 1));
+      if (d2.toISOString().slice(0,10) === dates[i]) streak++;
+      else break;
+    }
+  }
+  return streak;
+}
+
+// ============================================================
+// AI CARD GENERATION
+// ============================================================
+let aiGeneratedCards = [];
+
+function saveKey() {
+  const key = document.getElementById('apiKey').value.trim();
+  if (!key) return;
+  localStorage.setItem('flashmind_apikey', key);
+  toast('🔑 APIキーを保存しました');
+}
+
+async function generateCards() {
+  const key = localStorage.getItem('flashmind_apikey');
+  if (!key) { toast('APIキーを設定してください'); return; }
+  const topic = document.getElementById('aiTopic').value.trim();
+  if (!topic) { toast('テーマを入力してください'); return; }
+  const count = document.getElementById('aiCount').value;
+
+  const btn = document.getElementById('aiGenerateBtn');
+  btn.innerHTML = '<span class="ai-spinner"></span> 生成中...';
+  btn.disabled = true;
+
+  const prompt = `以下のテーマに関するフラッシュカードを${count}枚作成してください。
+テーマ: ${topic}
+
+以下のJSON形式で、配列のみを返してください（説明や前置き不要）:
+[{"front":"問題文","back":"答え（簡潔に）"},...]
+
+・問題は学習効果の高い一問一答形式
+・答えは50文字以内の簡潔な説明
+・専門用語は正確に`;
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 1000,
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error.message);
+    const text = data.content[0].text.trim().replace(/```json|```/g, '').trim();
+    aiGeneratedCards = JSON.parse(text);
+    renderAiCards();
+    toast(`✨ ${aiGeneratedCards.length}枚のカードを生成しました`);
+  } catch(e) {
+    toast('⚠️ 生成に失敗しました: ' + e.message);
+  } finally {
+    btn.innerHTML = '✨ 生成する';
+    btn.disabled = false;
+  }
+}
+
+function renderAiCards() {
+  const el = document.getElementById('aiCardList');
+  el.innerHTML = aiGeneratedCards.map((c, i) => `
+    <div class="ai-card-preview" id="ai-card-${i}">
+      <div class="ai-card-q">Q: ${escHtml(c.front)}</div>
+      <div class="ai-card-a">A: ${escHtml(c.back)}</div>
+      <div class="ai-card-actions">
+        <button class="btn btn-success btn-sm" onclick="addSingleAiCard(${i})">✅ 追加</button>
+        <button class="btn btn-danger btn-sm" onclick="removeAiCard(${i})">🗑 削除</button>
+      </div>
+    </div>`).join('');
+  document.getElementById('aiResult').classList.add('visible');
+}
+
+function addSingleAiCard(i) {
+  const c = aiGeneratedCards[i];
+  const deckId = document.getElementById('aiDeckSelect').value;
+  db.cards.push({ id: uid(), deckId, front: c.front, back: c.back, createdAt: now(), ...sm2Defaults() });
+  saveDB();
+  document.getElementById(`ai-card-${i}`).style.opacity = '0.4';
+  toast('✅ 追加しました');
+}
+
+function addAllAiCards() {
+  const deckId = document.getElementById('aiDeckSelect').value;
+  aiGeneratedCards.forEach(c => {
+    db.cards.push({ id: uid(), deckId, front: c.front, back: c.back, createdAt: now(), ...sm2Defaults() });
+  });
+  saveDB();
+  document.getElementById('aiResult').classList.remove('visible');
+  aiGeneratedCards = [];
+  toast(`✅ すべて追加しました`);
+}
+
+function removeAiCard(i) {
+  aiGeneratedCards.splice(i, 1);
+  if (aiGeneratedCards.length === 0) {
+    document.getElementById('aiResult').classList.remove('visible');
+  } else {
+    renderAiCards();
+  }
+}
+
+// ============================================================
+// IMPORT / EXPORT
+// ============================================================
+function exportJSON() {
+  const blob = new Blob([JSON.stringify(db, null, 2)], { type: 'application/json' });
+  downloadBlob(blob, `flashmind_backup_${today()}.json`);
+  toast('💾 エクスポートしました');
+}
+
+function exportCSV() {
+  const rows = [['front', 'back', 'deck']];
+  db.cards.forEach(c => {
+    const deck = db.decks.find(d => d.id === c.deckId);
+    rows.push([escapeCsv(c.front), escapeCsv(c.back), escapeCsv(deck ? deck.name : '')]);
+  });
+  const csv = rows.map(r => r.join(',')).join('\n');
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+  downloadBlob(blob, `flashmind_cards_${today()}.csv`);
+  toast('📄 CSVエクスポートしました');
+}
+
+function escapeCsv(s) {
+  s = String(s).replace(/"/g, '""');
+  return s.includes(',') || s.includes('\n') || s.includes('"') ? `"${s}"` : s;
+}
+
+function downloadBlob(blob, name) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function dropZone_over(e) { e.preventDefault(); document.getElementById('dropZone').classList.add('drag-over'); }
+function dropZone_leave(e) { document.getElementById('dropZone').classList.remove('drag-over'); }
+function dropZone_drop(e) {
+  e.preventDefault();
+  document.getElementById('dropZone').classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (file) handleImportFile(file);
+}
+
+function importFile(e) {
+  const file = e.target.files[0];
+  if (file) handleImportFile(file);
+  e.target.value = '';
+}
+
+function handleImportFile(file) {
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const text = ev.target.result;
+    if (file.name.endsWith('.json')) {
+      try {
+        const imported = JSON.parse(text);
+        if (!imported.cards) throw new Error('無効な形式');
+        if (!confirm(`${imported.cards.length}枚のカードをインポートしますか？（既存データは保持されます）`)) return;
+        // Merge
+        imported.decks?.forEach(d => { if (!db.decks.find(x => x.id === d.id)) db.decks.push(d); });
+        imported.cards?.forEach(c => { if (!db.cards.find(x => x.id === c.id)) db.cards.push(c); });
+        imported.history?.forEach(h => db.history.push(h));
+        saveDB(); refreshAllDeckSelects(); renderCardList();
+        toast(`✅ ${imported.cards.length}枚のカードをインポートしました`);
+      } catch(e) { toast('⚠️ JSONの解析に失敗しました'); }
+    } else if (file.name.endsWith('.csv')) {
+      const lines = text.replace(/\r/g, '').split('\n').filter(l => l.trim());
+      let added = 0;
+      lines.forEach((line, i) => {
+        if (i === 0 && line.toLowerCase().startsWith('front')) return; // header
+        const cols = parseCsvLine(line);
+        if (cols.length < 2) return;
+        const [front, back, deckName] = cols;
+        if (!front || !back) return;
+        let deck = db.decks.find(d => d.name === (deckName || ''));
+        if (!deck && deckName) {
+          deck = { id: uid(), name: deckName.trim(), createdAt: now() };
+          db.decks.push(deck);
+        }
+        db.cards.push({ id: uid(), deckId: deck?.id || db.decks[0].id, front: front.trim(), back: back.trim(), createdAt: now(), ...sm2Defaults() });
+        added++;
+      });
+      saveDB(); refreshAllDeckSelects(); renderCardList();
+      toast(`✅ ${added}枚のカードをインポートしました`);
+    } else if (file.name.endsWith('.tsv') || file.name.endsWith('.txt')) {
+      // Ankiエクスポート形式：タブ区切り（front\tback）
+      // #から始まるコメント行・空行はスキップ
+      const lines = text.replace(/\r/g, '').split('\n').filter(l => l.trim() && !l.startsWith('#'));
+      let added = 0;
+      const deckName = file.name.replace(/\.(tsv|txt)$/, '');
+      let deck = db.decks.find(d => d.name === deckName);
+      if (!deck) {
+        deck = { id: uid(), name: deckName, createdAt: now() };
+        db.decks.push(deck);
+      }
+      lines.forEach(line => {
+        const cols = line.split('\t');
+        if (cols.length < 2) return;
+        const front = cols[0].trim();
+        const back = cols[1].trim();
+        if (!front || !back) return;
+        db.cards.push({ id: uid(), deckId: deck.id, front, back, createdAt: now(), ...sm2Defaults() });
+        added++;
+      });
+      saveDB(); refreshAllDeckSelects(); renderCardList();
+      toast(`✅ ${added}枚をインポートしました（デッキ:${deckName}）`);
+    }
+  };
+  reader.readAsText(file, 'utf-8');
+}
+
+function parseCsvLine(line) {
+  const result = [];
+  let cur = '', inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    if (line[i] === '"') {
+      if (inQ && line[i+1] === '"') { cur += '"'; i++; }
+      else inQ = !inQ;
+    } else if (line[i] === ',' && !inQ) {
+      result.push(cur); cur = '';
+    } else cur += line[i];
+  }
+  result.push(cur);
+  return result;
+}
+
+function clearAllData() {
+  if (!confirm('全データを削除します。この操作は取り消せません。')) return;
+  localStorage.removeItem('flashmind_db');
+  loadDB(); refreshAllDeckSelects(); loadStudySession(); renderCardList();
+  toast('🗑 データを削除しました');
+}
+
+// ============================================================
+// UI UTILS
+// ============================================================
+function showView(name) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('view-' + name).classList.add('active');
+  document.querySelector(`.nav-btn[onclick="showView('${name}')"]`).classList.add('active');
+
+  if (name === 'study') { refreshAllDeckSelects(); loadStudySession(); }
+  if (name === 'manage') { refreshAllDeckSelects(); renderCardList(); }
+  if (name === 'stats') renderStats();
+  if (name === 'ai') { refreshAllDeckSelects(); const k = localStorage.getItem('flashmind_apikey'); if (k) document.getElementById('apiKey').value = k; }
+}
+
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+function toast(msg) {
+  const el = document.createElement('div');
+  el.className = 'toast';
+  el.textContent = msg;
+  document.getElementById('toastContainer').appendChild(el);
+  setTimeout(() => el.remove(), 2600);
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ============================================================
+// INIT
+// ============================================================
+loadDB();
+refreshAllDeckSelects();
+loadStudySession();
+
+// モーダル外クリックで閉じる
+document.querySelectorAll('.modal-overlay').forEach(overlay => {
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.classList.remove('open'); });
+});
+</script>
+</body>
+</html>
