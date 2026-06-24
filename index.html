@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>FlashMind – スマート暗記カード</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
 
 
@@ -750,9 +751,9 @@
           ondragover="dropZone_over(event)" ondragleave="dropZone_leave(event)" ondrop="dropZone_drop(event)">
           <div class="emoji">📂</div>
           <p style="font-size:14px;font-weight:600;margin-bottom:4px;">クリックまたはドラッグ＆ドロップ</p>
-          <small>JSON（バックアップ）/ CSV（表面,裏面,デッキ）/ TSV・TXT（表面⇥裏面）</small>
+          <small>JSON（バックアップ）/ CSV・TSV・TXT（テキストカード）/ ZIP（画像付きカード一括）</small>
         </div>
-        <input type="file" id="importFile" accept=".json,.csv,.tsv,.txt" style="display:none" onchange="importFile(event)">
+        <input type="file" id="importFile" accept=".json,.csv,.tsv,.txt,.zip" style="display:none" onchange="importFile(event)">
       </div>
 
       <div class="panel">
@@ -972,13 +973,13 @@ function renderStudyCard(card) {
         <div class="card-face card-front">
           <span class="card-side-label">問題</span>
           <span class="card-deck-tag">${deck ? deck.name : '?'}</span>
-          <div class="card-text">${escHtml(card.front)}</div>
+          <div class="card-text" id="cardFrontText">${renderCardContent(card.front)}</div>
           <span class="card-hint">タップでめくる</span>
         </div>
         <div class="card-face card-back">
           <span class="card-side-label">答え</span>
           <span class="card-deck-tag">${deck ? deck.name : '?'}</span>
-          <div class="card-text">${escHtml(card.back)}</div>
+          <div class="card-text" id="cardBackText">${renderCardContent(card.back)}</div>
         </div>
       </div>
     </div>`;
@@ -1425,6 +1426,11 @@ function importFile(e) {
 let _pendingImport = null; // {type, rows, fileCardCount}
 
 function handleImportFile(file) {
+  // ZIPファイルは専用処理
+  if (file.name.endsWith('.zip')) {
+    handleZipImport(file);
+    return;
+  }
   const reader = new FileReader();
   reader.onload = ev => {
     const text = ev.target.result;
@@ -1549,6 +1555,128 @@ function toast(msg) {
 
 function escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ============================================================
+// 画像ストレージ（IndexedDB）
+// ============================================================
+let _imgDB = null;
+
+function openImgDB() {
+  return new Promise((resolve, reject) => {
+    if (_imgDB) { resolve(_imgDB); return; }
+    const req = indexedDB.open('FlashMindImages', 1);
+    req.onupgradeneeded = e => e.target.result.createObjectStore('images');
+    req.onsuccess = e => { _imgDB = e.target.result; resolve(_imgDB); };
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function saveImage(name, dataUrl) {
+  const db = await openImgDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('images', 'readwrite');
+    tx.objectStore('images').put(dataUrl, name);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+async function getImage(name) {
+  const db = await openImgDB();
+  return new Promise((resolve) => {
+    const tx = db.transaction('images', 'readonly');
+    const req = tx.objectStore('images').get(name);
+    req.onsuccess = () => resolve(req.result || null);
+    req.onerror = () => resolve(null);
+  });
+}
+
+// ============================================================
+// カードコンテンツ描画（HTML対応・画像は非同期解決）
+// ============================================================
+function renderCardContent(text) {
+  // <br>タグを改行に変換し、<img>タグの src を data-img-name に変換して仮表示
+  const html = String(text)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')
+    // エスケープ後に安全なタグだけ復元
+    .replace(/&lt;br&gt;/gi, '<br>')
+    .replace(/&lt;br \/&gt;/gi, '<br>')
+    .replace(/&lt;img src=&quot;([^&]+)&quot;&gt;/gi, (_, name) =>
+      `<img data-img-name="${name}" src="" style="max-width:100%;border-radius:8px;margin-top:8px;" alt="${name}">`
+    );
+  // 非同期で画像を解決
+  setTimeout(() => resolveCardImages(), 50);
+  return html;
+}
+
+async function resolveCardImages() {
+  const imgs = document.querySelectorAll('img[data-img-name]');
+  for (const img of imgs) {
+    if (img.src && img.src !== window.location.href) continue; // 既に解決済み
+    const name = img.getAttribute('data-img-name');
+    const dataUrl = await getImage(name);
+    if (dataUrl) {
+      img.src = dataUrl;
+    } else {
+      img.alt = `[画像未読込: ${name}]`;
+      img.style.display = 'none';
+      const msg = document.createElement('span');
+      msg.textContent = `📷 ${name}`;
+      msg.style.cssText = 'font-size:11px;color:var(--ink-faint);display:block;margin-top:4px;';
+      img.parentNode.insertBefore(msg, img.nextSibling);
+    }
+  }
+}
+
+// ============================================================
+// ZIPインポート処理
+// ============================================================
+async function handleZipImport(file) {
+  toast('📦 ZIP読み込み中...');
+  try {
+    const zip = await JSZip.loadAsync(file);
+    // 画像ファイルを保存
+    const imageExts = /\.(png|jpg|jpeg|gif|webp|svg)$/i;
+    const imageFiles = Object.keys(zip.files).filter(n => imageExts.test(n) && !zip.files[n].dir);
+    let savedImages = 0;
+    for (const imgPath of imageFiles) {
+      const blob = await zip.files[imgPath].async('blob');
+      const reader = new FileReader();
+      const dataUrl = await new Promise(res => { reader.onload = e => res(e.target.result); reader.readAsDataURL(blob); });
+      const fileName = imgPath.split('/').pop(); // フォルダ部分を除いたファイル名
+      await saveImage(fileName, dataUrl);
+      savedImages++;
+    }
+    // TSV/TXTファイルを処理
+    const textFiles = Object.keys(zip.files).filter(n => /\.(tsv|txt|csv)$/i.test(n) && !zip.files[n].dir);
+    let allRows = [];
+    let suggestedName = file.name.replace(/\.zip$/i, '');
+    for (const txtPath of textFiles) {
+      const text = await zip.files[txtPath].async('string');
+      const lines = text.replace(/\r/g, '').split('\n').filter(l => l.trim() && !l.startsWith('#'));
+      lines.forEach(line => {
+        const cols = line.split('\t');
+        if (cols.length >= 2 && cols[0].trim() && cols[1].trim())
+          allRows.push({ front: cols[0].trim(), back: cols[1].trim() });
+      });
+      if (textFiles.length === 1) suggestedName = txtPath.split('/').pop().replace(/\.(tsv|txt|csv)$/i, '');
+    }
+    if (allRows.length === 0 && savedImages === 0) {
+      toast('⚠️ 有効なファイルが見つかりません'); return;
+    }
+    toast(`✅ 画像${savedImages}枚を保存しました`);
+    if (allRows.length > 0) {
+      _pendingImport = { rows: allRows, fileName: file.name };
+      document.getElementById('importFileInfo').textContent = `ZIPから カード${allRows.length}枚・画像${savedImages}枚 を読み込みました。`;
+      document.getElementById('importNewDeckName').value = suggestedName;
+      populateDeckSelect('importDeckSelect', db.decks[0]?.id);
+      openModal('importDeckModal');
+    }
+  } catch(e) {
+    console.error(e);
+    toast('⚠️ ZIP読み込みに失敗しました: ' + e.message);
+  }
 }
 
 // ============================================================
